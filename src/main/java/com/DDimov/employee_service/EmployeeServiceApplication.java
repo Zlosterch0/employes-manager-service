@@ -1,11 +1,9 @@
 package com.DDimov.employee_service;
 
-import com.DDimov.employee_service.entity.Address;
-import com.DDimov.employee_service.entity.Department;
-import com.DDimov.employee_service.entity.Employee;
-import com.DDimov.employee_service.entity.Role;
+import com.DDimov.employee_service.entity.*;
 import com.DDimov.employee_service.repository.DepartmentRepository;
 import com.DDimov.employee_service.repository.EmployeeRepository;
+import com.DDimov.employee_service.repository.ProjectRepository;
 import com.DDimov.employee_service.repository.RoleRepository;
 
 import java.util.HashSet;
@@ -24,14 +22,13 @@ public class EmployeeServiceApplication {
 
   @Bean
   CommandLineRunner initData(
-      RoleRepository roleRepo, DepartmentRepository deptRepo, EmployeeRepository empRepo) {
+      RoleRepository roleRepo,
+      DepartmentRepository deptRepo,
+      EmployeeRepository empRepo,
+      ProjectRepository projectRepo) {
     return args -> {
       Role adminRole =
-          roleRepo
-              .findByName("ROLE_ADMIN")
-              .orElseGet(() -> roleRepo.save(new Role( "ROLE_ADMIN")));
-
-
+          roleRepo.findByName("ROLE_ADMIN").orElseGet(() -> roleRepo.save(new Role("ROLE_ADMIN")));
       Role viewSalary =
           roleRepo
               .findByName("ROLE_VIEW_SALARY")
@@ -47,12 +44,24 @@ public class EmployeeServiceApplication {
                     return deptRepo.save(d);
                   });
 
+      Project aiProject =
+          projectRepo.findAll().stream()
+              .filter(p -> p.getTitle().equals("AI Research"))
+              .findFirst()
+              .orElseGet(
+                  () -> {
+                    Project p = new Project();
+                    p.setTitle("AI Research");
+                    return projectRepo.save(p);
+                  });
+
       if (empRepo.findByName("SuperAdmin").isEmpty()) {
         Employee adminUser = new Employee();
         adminUser.setName("SuperAdmin");
         adminUser.setSalary(10000.0);
         adminUser.setDepartment(hr);
-        adminUser.setRoles(new HashSet<>(List.of(adminRole, addEmp, viewSalary)));
+        adminUser.setRoles(new HashSet<>(List.of(adminRole, viewSalary)));
+        adminUser.setProjects(new HashSet<>(List.of(aiProject)));
 
         Address addr = new Address();
         addr.setStreet("Main St");
@@ -62,21 +71,8 @@ public class EmployeeServiceApplication {
         adminUser.setAddress(addr);
 
         empRepo.save(adminUser);
-        System.out.println(">>> SuperAdmin created.");
+        System.out.println(">>> SuperAdmin and Initial Data created.");
       }
-
-      if (empRepo.findByName("SimpleUser").isEmpty()) {
-        Employee simpleUser = new Employee();
-        simpleUser.setName("SimpleUser");
-        simpleUser.setSalary(2000.0);
-        simpleUser.setDepartment(hr);
-        simpleUser.setRoles(new HashSet<>(List.of(viewSalary)));
-        empRepo.save(simpleUser);
-        System.out.println(">>> SimpleUser created.");
-      }
-
-      System.out.println(
-          ">>> Seed data check complete. Use Header 'X-Logged-User: SuperAdmin' for full access.");
     };
   }
 }

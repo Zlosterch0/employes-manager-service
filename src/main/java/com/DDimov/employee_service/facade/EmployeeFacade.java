@@ -2,9 +2,8 @@ package com.DDimov.employee_service.facade;
 
 import com.DDimov.employee_service.dto.AddressDTO;
 import com.DDimov.employee_service.dto.EmployeeDTO;
-import com.DDimov.employee_service.entity.Address;
-import com.DDimov.employee_service.entity.Employee;
-import com.DDimov.employee_service.entity.Role;
+import com.DDimov.employee_service.entity.*;
+import com.DDimov.employee_service.repository.AddressRepository;
 import com.DDimov.employee_service.service.db.*;
 import java.util.List;
 import java.util.Objects;
@@ -20,49 +19,90 @@ public class EmployeeFacade {
 
   private final EmployeeService employeeService;
   private final RoleService roleService;
+  private final DepartmentService departmentService;
+  private final ProjectService projectService;
+  private final AddressRepository addressRepository;
+
+  public List<EmployeeDTO> getHighPaid(Double salary, String requestorName) {
+    Employee requestor = getAndValidateRequestor(requestorName);
+    if (hasRole(requestor, "ROLE_ADMIN")) {
+      return employeeService.findRich(salary).stream()
+          .map(this::mapToDTO)
+          .collect(Collectors.toList());
+    }
+    throw new RuntimeException("Access Denied: Insufficient permissions to filter salaries.");
+  }
+
+  @Transactional
+  public EmployeeDTO registerEmployee(
+      EmployeeDTO dto, List<Long> roleIds, List<Long> projectIds, String requestorName) {
+    validateAdmin(requestorName);
+
+    Employee employee = new Employee();
+    employee.setName(dto.getName());
+    employee.setSalary(dto.getSalary());
+
+    if (dto.getAddress() != null) {
+      Address addr =
+          addressRepository
+              .findByStreetAndStreetNumber(
+                  dto.getAddress().getStreet(), dto.getAddress().getStreetNumber())
+              .orElseGet(
+                  () -> {
+                    Address newAddr = new Address();
+                    newAddr.setStreet(dto.getAddress().getStreet());
+                    newAddr.setStreetNumber(dto.getAddress().getStreetNumber());
+                    newAddr.setZipCode(dto.getAddress().getZipCode());
+                    newAddr.setCountry(dto.getAddress().getCountry());
+                    return addressRepository.save(newAddr);
+                  });
+      employee.setAddress(addr);
+    }
+
+    if (dto.getDepartmentName() != null) {
+      Department dept = departmentService.findByName(dto.getDepartmentName());
+      if (dept == null) {
+        dept = new Department();
+        dept.setName(dto.getDepartmentName());
+        dept = departmentService.save(dept);
+      }
+      employee.setDepartment(dept);
+    }
+
+    employee.setRoles(
+        roleIds.stream()
+            .map(roleService::findById)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet()));
+    if (projectIds != null) {
+      employee.setProjects(
+          projectIds.stream()
+              .map(projectService::findById)
+              .filter(Objects::nonNull)
+              .collect(Collectors.toSet()));
+    }
+
+    return mapToDTO(employeeService.save(employee));
+  }
 
   public List<EmployeeDTO> getAllEmployees(String requestorName) {
     Employee requestor = getAndValidateRequestor(requestorName);
     if (hasRole(requestor, "ROLE_ADMIN")) {
       return employeeService.findAll().stream().map(this::mapToDTO).collect(Collectors.toList());
     }
-    if (hasRole(requestor, "ROLE_VIEW_SALARY")) {
-      return List.of(mapToDTO(requestor));
-    }
-
-    throw new RuntimeException("Access Denied: You do not have permission to view employee lists.");
-  }
-
-  public EmployeeDTO registerEmployee(EmployeeDTO dto, List<Long> roleIds, String requestorName) {
-    validateAdmin(requestorName);
-    Employee employee = new Employee();
-    employee.setName(dto.getName());
-    employee.setSalary(dto.getSalary());
-
-    Set<Role> roles =
-        roleIds.stream()
-            .map(roleService::findById)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-    employee.setRoles(roles);
-
-    if (dto.getAddress() != null) {
-      Address addr = new Address();
-      addr.setStreet(dto.getAddress().getStreet());
-      addr.setStreetNumber(dto.getAddress().getStreetNumber());
-      addr.setZipCode(dto.getAddress().getZipCode());
-      addr.setCountry(dto.getAddress().getCountry());
-      employee.setAddress(addr);
-    }
-
-    Employee savedEmployee = employeeService.save(employee);
-    return mapToDTO(savedEmployee);
+    return List.of(mapToDTO(requestor));
   }
 
   public EmployeeDTO loginSimulation(String name) {
     Employee emp = employeeService.findByName(name);
     if (emp == null) throw new RuntimeException("User not found");
     return mapToDTO(emp);
+  }
+
+  @Transactional
+  public void deleteEmployee(Long id, String requestorName) {
+    validateAdmin(requestorName);
+    employeeService.delete(id);
   }
 
   private EmployeeDTO mapToDTO(Employee emp) {
@@ -79,57 +119,35 @@ public class EmployeeFacade {
     dto.setDepartmentName(emp.getDepartment() != null ? emp.getDepartment().getName() : "N/A");
 
     if (emp.getAddress() != null) {
-      var a = emp.getAddress();
       AddressDTO addrDto = new AddressDTO();
-      addrDto.setStreet(a.getStreet());
-      addrDto.setStreetNumber(a.getStreetNumber());
-      addrDto.setZipCode(a.getZipCode());
-      addrDto.setCountry(a.getCountry());
-
+      addrDto.setStreet(emp.getAddress().getStreet());
+      addrDto.setStreetNumber(emp.getAddress().getStreetNumber());
+      addrDto.setZipCode(emp.getAddress().getZipCode());
+      addrDto.setCountry(emp.getAddress().getCountry());
       dto.setAddress(addrDto);
     }
 
-    return dto;
-  }
-
-  public List<EmployeeDTO> getHighPaid(Double salary, String requestorName) {
-    Employee requestor = getAndValidateRequestor(requestorName);
-
-    if (hasRole(requestor, "ADMIN")) {
-      return employeeService.findRich(salary).stream()
-          .map(this::mapToDTO)
-          .collect(Collectors.toList());
+    if (emp.getProjects() != null) {
+      dto.setProjectTitles(
+          emp.getProjects().stream().map(Project::getTitle).collect(Collectors.toList()));
     }
-
-    throw new RuntimeException("Access Denied: Insufficient permissions to filter salaries.");
-  }
-
-  @Transactional
-  public EmployeeDTO createEmployee(Employee employee, String requestorName) {
-    validateAdmin(requestorName);
-    return mapToDTO(employeeService.save(employee));
-  }
-
-  @Transactional
-  public void deleteEmployee(Long id, String requestorName) {
-    validateAdmin(requestorName);
-    employeeService.delete(id);
+    return dto;
   }
 
   private void validateAdmin(String name) {
     Employee requestor = getAndValidateRequestor(name);
     if (!hasRole(requestor, "ROLE_ADMIN")) {
-      throw new RuntimeException("Forbidden: You must be an ADMIN to perform this action.");
+      throw new RuntimeException("Forbidden: Admin access required.");
     }
   }
 
   private Employee getAndValidateRequestor(String name) {
     Employee emp = employeeService.findByName(name);
-    if (emp == null) throw new RuntimeException("Authentication Error: Requestor not found.");
+    if (emp == null) throw new RuntimeException("User not found.");
     return emp;
   }
 
   private boolean hasRole(Employee emp, String roleName) {
-    return emp.getRoles().stream().anyMatch(role -> role.getName().equalsIgnoreCase(roleName));
+    return emp.getRoles().stream().anyMatch(r -> r.getName().equalsIgnoreCase(roleName));
   }
 }

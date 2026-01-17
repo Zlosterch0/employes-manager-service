@@ -12,4 +12,5 @@ public class EmployeeDTO {
   private List<String> rolePermissions;
   private String departmentName;
   private AddressDTO address;
+  private List<String> projectTitles;
 }

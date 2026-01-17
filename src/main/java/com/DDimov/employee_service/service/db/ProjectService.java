@@ -20,7 +20,11 @@ public class ProjectService {
     return repository.save(project);
   }
 
-  public void delete(Long id) {
-    repository.deleteById(id);
+  public Project findById(Long id) {
+    return repository.findById(id).orElse(null);
+  }
+
+  public Project findByTitle(String title) {
+    return repository.findByTitle(title).orElse(null);
   }
 }
