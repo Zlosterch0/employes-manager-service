@@ -1,2 +1,12 @@
-package com.DDimov.employee_service.repository;@Repository
-public interface RoleRepository extends JpaRepository<Role, Long> {}
+package com.DDimov.employee_service.repository;
+
+import com.DDimov.employee_service.entity.Role;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface RoleRepository extends JpaRepository<Role, Long> {
+  Optional<Role> findByName(String name);
+}

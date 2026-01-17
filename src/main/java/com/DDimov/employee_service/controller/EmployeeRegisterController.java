@@ -12,18 +12,20 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-public class AuthController {
+public class EmployeeRegisterController {
 
   private final EmployeeFacade employeeFacade;
 
   @PostMapping("/register")
-  public ResponseEntity<EmployeeDTO> register(
-      @RequestBody Employee employee, @RequestParam List<Long> roleIds) {
-    return ResponseEntity.ok(employeeFacade.registerEmployee(employee, roleIds));
+  public ResponseEntity<?> register(
+      @RequestBody EmployeeDTO employee,
+      @RequestParam List<Long> roleIds,
+      @RequestHeader("X-Logged-User") String requestorName) {
+    return ResponseEntity.ok(employeeFacade.registerEmployee(employee, roleIds, requestorName));
   }
 
   @GetMapping("/login")
-  public ResponseEntity<EmployeeDTO> login(@RequestParam String name) {
+  public ResponseEntity<?> login(@RequestParam String name) {
     return ResponseEntity.ok(employeeFacade.loginSimulation(name));
   }
 }

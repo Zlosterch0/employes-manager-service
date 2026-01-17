@@ -1,20 +1,38 @@
-package com.DDimov.employee_service.entity;@Entity @Data
+package com.DDimov.employee_service.entity;
+
+import jakarta.persistence.*;
+import lombok.Data;
+
+import java.util.Set;
+
+@Entity
+@Data
 public class Employee {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    private String name;
-    private Double salary;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @ManyToOne // Requirement: ManyToOne
-    @JoinColumn(name = "department_id")
-    private Department department;
+  private String name;
+  private Double salary;
 
-    @ManyToMany // Requirement: ManyToMany
-    @JoinTable(name = "employee_projects", 
-               joinColumns = @JoinColumn(name = "employee_id"), 
-               inverseJoinColumns = @JoinColumn(name = "project_id"))
-    private Set<Project> projects;
+  @ManyToMany(fetch = FetchType.EAGER)
+  @JoinTable(
+      name = "employee_roles",
+      joinColumns = @JoinColumn(name = "employee_id"),
+      inverseJoinColumns = @JoinColumn(name = "role_id"))
+  private Set<Role> roles;
 
-    @OneToOne(cascade = CascadeType.ALL) // Table 4
-    private Address address;
+  @ManyToOne
+  @JoinColumn(name = "department_id")
+  private Department department;
+
+  @ManyToMany
+  @JoinTable(
+      name = "employee_projects",
+      joinColumns = @JoinColumn(name = "employee_id"),
+      inverseJoinColumns = @JoinColumn(name = "project_id"))
+  private Set<Project> projects;
+
+  @OneToOne(cascade = CascadeType.ALL)
+  private Address address;
 }
